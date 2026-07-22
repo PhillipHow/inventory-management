@@ -1,0 +1,14 @@
+[
+  {
+    "username": "admin",
+    "full_name": "Admin User",
+    "role": "admin",
+    "password_hash": "pbkdf2_sha256$200000$a47bcfc43125adf611990b108a6d1efe$983a530abada12aecdf362f9c3ce9616e0707977aff178e1bb025f027875d4ab"
+  },
+  {
+    "username": "manager",
+    "full_name": "Warehouse Manager",
+    "role": "manager",
+    "password_hash": "pbkdf2_sha256$200000$8d03dedefe299cf5a797ce1e09ca972d$f26bbf423aa06ca29e4d1fab0fb88d13d0640bb4ce19e5eb8675e05d69a3fd60"
+  }
+]

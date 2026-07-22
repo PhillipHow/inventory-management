@@ -1,56 +1,63 @@
 <template>
   <div class="app">
-    <header class="top-nav">
-      <div class="nav-container">
-        <div class="logo">
-          <h1>{{ t('nav.companyName') }}</h1>
-          <span class="subtitle">{{ t('nav.subtitle') }}</span>
+    <template v-if="$route.path !== '/login'">
+      <header class="top-nav">
+        <div class="nav-container">
+          <div class="logo">
+            <h1>{{ t('nav.companyName') }}</h1>
+            <span class="subtitle">{{ t('nav.subtitle') }}</span>
+          </div>
+          <nav class="nav-tabs">
+            <router-link to="/" :class="{ active: $route.path === '/' }">
+              {{ t('nav.overview') }}
+            </router-link>
+            <router-link to="/inventory" :class="{ active: $route.path === '/inventory' }">
+              {{ t('nav.inventory') }}
+            </router-link>
+            <router-link to="/orders" :class="{ active: $route.path === '/orders' }">
+              {{ t('nav.orders') }}
+            </router-link>
+            <router-link to="/spending" :class="{ active: $route.path === '/spending' }">
+              {{ t('nav.finance') }}
+            </router-link>
+            <router-link to="/demand" :class="{ active: $route.path === '/demand' }">
+              {{ t('nav.demandForecast') }}
+            </router-link>
+            <router-link to="/restocking" :class="{ active: $route.path === '/restocking' }">
+              {{ t('nav.restocking') }}
+            </router-link>
+            <router-link to="/reports" :class="{ active: $route.path === '/reports' }">
+              Reports
+            </router-link>
+          </nav>
+          <LanguageSwitcher />
+          <ProfileMenu
+            @show-profile-details="showProfileDetails = true"
+            @show-tasks="showTasks = true"
+          />
         </div>
-        <nav class="nav-tabs">
-          <router-link to="/" :class="{ active: $route.path === '/' }">
-            {{ t('nav.overview') }}
-          </router-link>
-          <router-link to="/inventory" :class="{ active: $route.path === '/inventory' }">
-            {{ t('nav.inventory') }}
-          </router-link>
-          <router-link to="/orders" :class="{ active: $route.path === '/orders' }">
-            {{ t('nav.orders') }}
-          </router-link>
-          <router-link to="/spending" :class="{ active: $route.path === '/spending' }">
-            {{ t('nav.finance') }}
-          </router-link>
-          <router-link to="/demand" :class="{ active: $route.path === '/demand' }">
-            {{ t('nav.demandForecast') }}
-          </router-link>
-          <router-link to="/reports" :class="{ active: $route.path === '/reports' }">
-            Reports
-          </router-link>
-        </nav>
-        <LanguageSwitcher />
-        <ProfileMenu
-          @show-profile-details="showProfileDetails = true"
-          @show-tasks="showTasks = true"
-        />
-      </div>
-    </header>
-    <FilterBar />
-    <main class="main-content">
+      </header>
+      <FilterBar />
+    </template>
+    <main class="main-content" :class="{ 'no-chrome': $route.path === '/login' }">
       <router-view />
     </main>
 
-    <ProfileDetailsModal
-      :is-open="showProfileDetails"
-      @close="showProfileDetails = false"
-    />
+    <template v-if="$route.path !== '/login'">
+      <ProfileDetailsModal
+        :is-open="showProfileDetails"
+        @close="showProfileDetails = false"
+      />
 
-    <TasksModal
-      :is-open="showTasks"
-      :tasks="tasks"
-      @close="showTasks = false"
-      @add-task="addTask"
-      @delete-task="deleteTask"
-      @toggle-task="toggleTask"
-    />
+      <TasksModal
+        :is-open="showTasks"
+        :tasks="tasks"
+        @close="showTasks = false"
+        @add-task="addTask"
+        @delete-task="deleteTask"
+        @toggle-task="toggleTask"
+      />
+    </template>
   </div>
 </template>
 
@@ -75,11 +82,15 @@ export default {
     LanguageSwitcher
   },
   setup() {
-    const { currentUser } = useAuth()
+    const { currentUser, isAuthenticated, fetchCurrentUser } = useAuth()
     const { t } = useI18n()
     const showProfileDetails = ref(false)
     const showTasks = ref(false)
     const apiTasks = ref([])
+
+    if (isAuthenticated.value) {
+      fetchCurrentUser()
+    }
 
     // Merge mock tasks from currentUser with API tasks
     const tasks = computed(() => {
@@ -272,6 +283,11 @@ body {
   width: 100%;
   margin: 0 auto;
   padding: 1.5rem 2rem;
+}
+
+.main-content.no-chrome {
+  max-width: none;
+  padding: 0;
 }
 
 .page-header {

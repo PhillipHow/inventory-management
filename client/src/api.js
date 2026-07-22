@@ -1,8 +1,42 @@
 import axios from 'axios'
 
 const API_BASE_URL = 'http://localhost:8001/api'
+const TOKEN_KEY = 'auth_token'
+
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem(TOKEN_KEY)
+  if (token && config.url && config.url.startsWith(API_BASE_URL)) {
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem(TOKEN_KEY)
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
 
 export const api = {
+  async login(username, password) {
+    const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password })
+    localStorage.setItem(TOKEN_KEY, response.data.access_token)
+    return response.data
+  },
+
+  async getCurrentUser() {
+    const response = await axios.get(`${API_BASE_URL}/auth/me`)
+    return response.data
+  },
+
   async getInventory(filters = {}) {
     const params = new URLSearchParams()
     if (filters.warehouse && filters.warehouse !== 'all') params.append('warehouse', filters.warehouse)

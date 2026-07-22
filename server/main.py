@@ -1,8 +1,17 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from typing import List, Optional
-from pydantic import BaseModel
 from mock_data import inventory_items, orders, demand_forecasts, backlog_items, spending_summary, monthly_spending, category_spending, recent_transactions, purchase_orders
+from pydantic import BaseModel
+from auth import (
+    Token,
+    User,
+    authenticate_user,
+    create_access_token,
+    decode_access_token,
+    get_current_user,
+)
 
 app = FastAPI(title="Factory Inventory Management System")
 
@@ -47,13 +56,53 @@ def apply_filters(items: list, warehouse: Optional[str] = None, category: Option
     return filtered
 
 # CORS middleware
+# Restrict to the frontend dev origin. A stateless bearer-token API does not
+# need credentialed CORS, so allow_credentials stays False (avoids the
+# wildcard-origin + credentials spec violation flagged in the security audit).
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Paths that do not require authentication
+PUBLIC_PATHS = {"/", "/api/auth/login", "/docs", "/redoc", "/openapi.json"}
+
+
+@app.middleware("http")
+async def require_authentication(request, call_next):
+    """Require a valid bearer token for all /api routes except public ones."""
+    path = request.url.path
+
+    # Allow CORS preflight and public/non-API paths through untouched
+    if request.method == "OPTIONS" or path in PUBLIC_PATHS or not path.startswith("/api/"):
+        return await call_next(request)
+
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.lower().startswith("bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Not authenticated"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = auth_header[7:].strip()
+    try:
+        decode_access_token(token)
+    except ValueError:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Could not validate credentials"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return await call_next(request)
 
 # Data models
 class InventoryItem(BaseModel):
@@ -124,6 +173,28 @@ class CreatePurchaseOrderRequest(BaseModel):
 @app.get("/")
 def root():
     return {"message": "Factory Inventory Management System API", "version": "1.0.0"}
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/auth/login", response_model=Token)
+def login(credentials: LoginRequest):
+    """Authenticate a user and return a JWT access token."""
+    user = authenticate_user(credentials.username, credentials.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(subject=user["username"], role=user["role"])
+    return Token(access_token=access_token)
+
+@app.get("/api/auth/me", response_model=User)
+def read_current_user(current_user: User = Depends(get_current_user)):
+    """Return the profile of the currently authenticated user."""
+    return current_user
 
 @app.get("/api/inventory", response_model=List[InventoryItem])
 def get_inventory(
