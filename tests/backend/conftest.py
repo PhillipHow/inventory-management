@@ -14,9 +14,38 @@ sys.path.insert(0, str(server_path))
 from main import app
 
 
+# Demo credentials shipped in server/data/users.json
+TEST_USERNAME = "admin"
+TEST_PASSWORD = "admin123"
+
+
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI application."""
+def auth_token():
+    """Obtain a valid JWT access token for the demo admin user."""
+    with TestClient(app) as test_client:
+        response = test_client.post(
+            "/api/auth/login",
+            json={"username": TEST_USERNAME, "password": TEST_PASSWORD},
+        )
+        assert response.status_code == 200, "Login failed in test setup"
+        return response.json()["access_token"]
+
+
+@pytest.fixture
+def client(auth_token):
+    """Authenticated test client — sends a valid Bearer token on every request.
+
+    All /api routes now require authentication, so the default client fixture
+    is pre-authenticated to keep endpoint tests focused on their own behavior.
+    """
+    with TestClient(app) as test_client:
+        test_client.headers.update({"Authorization": f"Bearer {auth_token}"})
+        yield test_client
+
+
+@pytest.fixture
+def unauthenticated_client():
+    """Test client with no auth header — for testing the auth boundary itself."""
     with TestClient(app) as test_client:
         yield test_client
 
